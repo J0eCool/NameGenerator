@@ -6,74 +6,98 @@ startChar = '0'
 endChar = '1'
 chars = basicChars + [startChar, endChar]
 
+def allStringsOfLength(length, prefix=''):
+    return [prefix + ''.join(i) for i in itertools.product(basicChars, repeat=length)]
+
 class Markov:
-	def __init__(self):
-		self.counts = {}
-		self.probs = {}
-		for c in chars[:-1]:
-			self.counts[c] = {}
-			self.probs[c] = {}
-			for c2 in chars:
-				self.counts[c][c2] = 1
-		self.recalcProbs()
+    def __init__(self, lookahead=2):
+        self.counts = {}
+        self.probs = {}
 
-	def recalcProbs(self):
-		for c in chars[:-1]:
-			tot = 0
-			for c2 in chars:
-				tot += self.counts[c][c2]
-			for c2 in chars:
-				self.probs[c][c2] = self.counts[c][c2] / tot
+        self.l = lookahead
 
-	def readWord(self, word, recalc=False):
-		word = word.lower()
-		cur = startChar
-		for c in word:
-			self.counts[cur][c] += 1
-			cur = c
-		self.counts[cur][endChar] += 1
+        self.recalcProbs()
 
-		if recalc:
-			self.recalcProbs()
+    def recalcProbs(self):
+        for c in self.counts:
+            tot = 0
+            for c2 in self.counts[c]:
+                tot += self.counts[c][c2]
+            for c2 in self.counts[c]:
+                self.probs[c][c2] = self.counts[c][c2] / tot
 
-	def readFile(self, filename):
-		inFile = open(filename, 'r')
-		words = inFile.read().split()
-		inFile.close()
+    def readChar(self, given, char):
+        if not given in self.counts:
+            self.counts[given] = {}
+            self.probs[given] = {}
 
-		for w in words:
-			self.readWord(w)
+        if not char in self.counts[given]:
+            self.counts[given][char] = 1
+        else:
+            self.counts[given][char] += 1
 
-		self.recalcProbs()
+    def readWord(self, word, recalc=True):
+        word = word.lower()
+        cur = startChar * self.l
+        for c in word:
+            self.readChar(cur, c)
+            cur = cur[1:] + c
+        self.readChar(cur, endChar)
 
-	def generate(self):
-		name = ''
-		cur = startChar
+        if recalc:
+            self.recalcProbs()
 
-		while cur != endChar:
-			if cur != startChar:
-				name += cur
-			roll = random.random()
-			for c in chars:
-				p = self.probs[cur][c]
-				if roll <= p:
-					cur = c
-					break
-				else:
-					roll -= p
+    def readFile(self, filename):
+        inFile = open(filename, 'r')
+        words = inFile.read().split()
+        inFile.close()
 
-		return name[0:1].upper() + name[1:]
+        for w in words:
+            self.readWord(w, False)
+
+        self.recalcProbs()
+        return words
+
+    def generate(self, start=startChar):
+        name = ''
+        cur = startChar * (self.l - 1) + start
+
+        while not endChar in cur:
+            nextChar = cur[-1:]
+            if nextChar != startChar:
+                name += nextChar
+            roll = random.random()
+            for c in self.probs[cur]:
+                p = self.probs[cur][c]
+                if roll <= p:
+                    cur = cur[1:] + c
+                    break
+                else:
+                    roll -= p
+
+        return name[0:1].upper() + name[1:]
 
 def main(args):
-	m = Markov()
-	m.readFile('names.txt')
+    n = 10
+    s = startChar
+    l = 2
+    if len(args) > 0:
+        n = int(args[0])
+    if len(args) > 1:
+        l = int(args[1])
+    if len(args) > 2:
+        s = args[2]
 
-	n = 10
-	if len(args) > 0:
-		n = int(args[0])
 
-	for i in range(n):
-		print(i + 1, ':', m.generate())
+    m = Markov(l)
+    words = m.readFile('names.txt')
+
+    for i in range(n):
+        name = m.generate(s)
+        if name in words:
+            name += " (!)" # flag non-original names
+
+        print('{:3}'.format(i + 1), ':', name)
 
 if __name__ == '__main__':
-	main(sys.argv[1:])
+    main(sys.argv[1:])
